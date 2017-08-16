@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25123.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WorkflowEngine", "WorkflowEngine\WorkflowEngine.csproj", "{9A34B14C-A89D-44D8-8609-14FA814845BF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Schemas", "Schemas\Schemas.csproj", "{F057DE1E-7E6B-4886-9C13-890591A13D73}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WorkflowEngine.Tests", "WorkflowEngine.Tests\WorkflowEngine.Tests.csproj", "{0D41F103-1419-4E0E-BC66-EB044BA27A5B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9A34B14C-A89D-44D8-8609-14FA814845BF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9A34B14C-A89D-44D8-8609-14FA814845BF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9A34B14C-A89D-44D8-8609-14FA814845BF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9A34B14C-A89D-44D8-8609-14FA814845BF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F057DE1E-7E6B-4886-9C13-890591A13D73}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F057DE1E-7E6B-4886-9C13-890591A13D73}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F057DE1E-7E6B-4886-9C13-890591A13D73}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F057DE1E-7E6B-4886-9C13-890591A13D73}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0D41F103-1419-4E0E-BC66-EB044BA27A5B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0D41F103-1419-4E0E-BC66-EB044BA27A5B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0D41F103-1419-4E0E-BC66-EB044BA27A5B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0D41F103-1419-4E0E-BC66-EB044BA27A5B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
