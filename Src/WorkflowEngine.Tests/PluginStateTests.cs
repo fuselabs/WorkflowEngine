@@ -1,42 +1,28 @@
-﻿using Microsoft.Practices.Unity;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using System;
+using Microsoft.Practices.Unity;
 using WorkflowEngine.Interfaces;
-using WorkflowEngine.Json;
-using WorkflowEngine.Logging.Interfaces;
-using WorkflowEngine.Tests.Mocks.Config;
-using WorkflowEngine.Tests.Mocks.Logging;
-using WorkflowEngine.Tests.Mocks.ServiceProvider;
-using WorkflowEngine.Tests.Mocks.WorkQueue;
 using WorkflowEngine.Tests.Schemas;
 using WorkflowEngine.Tests.Workflows;
+using Xunit;
 using ThreadingTask = System.Threading.Tasks.Task;
 
 namespace WorkflowEngine.Tests
 {
-    [TestClass]
-    public class PluginStateTests
+    public class PluginStateTests : IClassFixture<UnityContainerFixture>, IDisposable
     {
-        private static IUnityContainer _container;
+        private readonly UnityContainerFixture _fixture;
 
-        [ClassInitialize]
-        public static void Initialize(TestContext context)
+        public PluginStateTests(UnityContainerFixture fixture)
         {
-            _container = new UnityContainer();
-            _container.RegisterType<IPluginServices, PluginServices>();
-            _container.RegisterType<IPluginConfig, MockPluginConfig>();
-            _container.RegisterType<IServiceProvider, MockServiceProvider>();
-            _container.RegisterType<ILogger, MockLogger>();
-            _container.RegisterType<IWorkQueue, MockWorkQueue>();
-
-            JsonUtils.SetGlobalJsonNetSettings();
+            _fixture = fixture;
         }
 
-        
-        [TestMethod]
-        public async ThreadingTask PluginState_AsyncExecution()
+
+        [Fact]
+        public async ThreadingTask AsyncExecution()
         {
-            _container.RegisterType<IWorkflowContainer<StatefulWorkflow, StatefulWorkflowState>, WorkflowContainer<StatefulWorkflow, StatefulWorkflowState>>();
-            var workflowContainer = _container.Resolve<IWorkflowContainer<StatefulWorkflow, StatefulWorkflowState>>();
+            _fixture.Container.RegisterType<IWorkflowContainer<StatefulWorkflow, StatefulWorkflowState>, WorkflowContainer<StatefulWorkflow, StatefulWorkflowState>>();
+            var workflowContainer = _fixture.Container.Resolve<IWorkflowContainer<StatefulWorkflow, StatefulWorkflowState>>();
             workflowContainer.Initialize();
 
             var workflowInput = workflowContainer.CreateWorkflowInput<AInput>();
@@ -44,29 +30,29 @@ namespace WorkflowEngine.Tests
             // First execution. Workflow shouldn't resolve yet
             var result = await workflowContainer.Execute(new PluginInputs { { "input", workflowInput } });
             var workflowOutput = workflowContainer.GetOutput();
-            Assert.IsNull(workflowOutput);
-            Assert.IsTrue(result == WorkflowContainerExecutionResult.PartiallyCompleted);
+            Assert.Null(workflowOutput);
+            Assert.True(result == WorkflowContainerExecutionResult.PartiallyCompleted);
 
             // Second execution. Workflow shouldn't resolve yet
             result = await workflowContainer.ReExecute();
             workflowOutput = workflowContainer.GetOutput();
-            Assert.IsNull(workflowOutput);
-            Assert.IsTrue(result == WorkflowContainerExecutionResult.PartiallyCompleted);
+            Assert.Null(workflowOutput);
+            Assert.True(result == WorkflowContainerExecutionResult.PartiallyCompleted);
 
             // Third execution. Workflow should resolve
             result = await workflowContainer.ReExecute();
             workflowOutput = workflowContainer.GetOutput();
-            Assert.IsNotNull(workflowOutput);
-            Assert.IsTrue(result == WorkflowContainerExecutionResult.Completed);
-            Assert.IsTrue(workflowOutput.Data.CurrentValue == 3);
+            Assert.NotNull(workflowOutput);
+            Assert.True(result == WorkflowContainerExecutionResult.Completed);
+            Assert.True(workflowOutput.Data.CurrentValue == 3);
 
         }
 
-        [TestMethod]
-        public async ThreadingTask PluginState_AsyncExecutionWithSerialization()
+        [Fact]
+        public async ThreadingTask AsyncExecutionWithSerialization()
         {
-            _container.RegisterType<IWorkflowContainer<StatefulWorkflow, StatefulWorkflowState>, WorkflowContainer<StatefulWorkflow, StatefulWorkflowState>>();
-            var workflowContainer = _container.Resolve<IWorkflowContainer<StatefulWorkflow, StatefulWorkflowState>>();
+            _fixture.Container.RegisterType<IWorkflowContainer<StatefulWorkflow, StatefulWorkflowState>, WorkflowContainer<StatefulWorkflow, StatefulWorkflowState>>();
+            var workflowContainer = _fixture.Container.Resolve<IWorkflowContainer<StatefulWorkflow, StatefulWorkflowState>>();
             workflowContainer.Initialize();
 
             var workflowInput = workflowContainer.CreateWorkflowInput<AInput>();
@@ -74,34 +60,39 @@ namespace WorkflowEngine.Tests
             // First execution. Workflow shouldn't resolve yet
             var result = await workflowContainer.Execute(new PluginInputs { { "input", workflowInput } });
             var workflowOutput = workflowContainer.GetOutput();
-            Assert.IsNull(workflowOutput);
-            Assert.IsTrue(result == WorkflowContainerExecutionResult.PartiallyCompleted);
+            Assert.Null(workflowOutput);
+            Assert.True(result == WorkflowContainerExecutionResult.PartiallyCompleted);
 
             // Store Context and recreate workflow container
             var serializedWorkflowContext = workflowContainer.Store();
-            workflowContainer = _container.Resolve<IWorkflowContainer<StatefulWorkflow, StatefulWorkflowState>>();
+            workflowContainer = _fixture.Container.Resolve<IWorkflowContainer<StatefulWorkflow, StatefulWorkflowState>>();
             var loadSucceeded = workflowContainer.TryLoad(serializedWorkflowContext);
-            Assert.IsTrue(loadSucceeded);
+            Assert.True(loadSucceeded);
 
             // Second execution. Workflow shouldn't resolve yet
             result = await workflowContainer.ReExecute();
             workflowOutput = workflowContainer.GetOutput();
-            Assert.IsNull(workflowOutput);
-            Assert.IsTrue(result == WorkflowContainerExecutionResult.PartiallyCompleted);
+            Assert.Null(workflowOutput);
+            Assert.True(result == WorkflowContainerExecutionResult.PartiallyCompleted);
 
             // Store Context and recreate workflow container
             serializedWorkflowContext = workflowContainer.Store();
-            workflowContainer = _container.Resolve<IWorkflowContainer<StatefulWorkflow, StatefulWorkflowState>>();
+            workflowContainer = _fixture.Container.Resolve<IWorkflowContainer<StatefulWorkflow, StatefulWorkflowState>>();
             loadSucceeded = workflowContainer.TryLoad(serializedWorkflowContext);
-            Assert.IsTrue(loadSucceeded);
+            Assert.True(loadSucceeded);
 
             // Third execution. Workflow should resolve
             result = await workflowContainer.ReExecute();
             workflowOutput = workflowContainer.GetOutput();
-            Assert.IsNotNull(workflowOutput);
-            Assert.IsTrue(result == WorkflowContainerExecutionResult.Completed);
-            Assert.IsTrue(workflowOutput.Data.CurrentValue == 3);
+            Assert.NotNull(workflowOutput);
+            Assert.True(result == WorkflowContainerExecutionResult.Completed);
+            Assert.True(workflowOutput.Data.CurrentValue == 3);
 
+        }
+
+        public void Dispose()
+        {
+            _fixture.Dispose();
         }
     }
 }

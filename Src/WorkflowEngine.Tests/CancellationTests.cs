@@ -1,51 +1,40 @@
-﻿using Microsoft.Practices.Unity;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using System;
+using Microsoft.Practices.Unity;
 using WorkflowEngine.Interfaces;
-using WorkflowEngine.Logging.Interfaces;
-using WorkflowEngine.Tests.Mocks.Config;
-using WorkflowEngine.Tests.Mocks.Logging;
-using WorkflowEngine.Tests.Mocks.ServiceProvider;
-using WorkflowEngine.Tests.Mocks.WorkQueue;
 using WorkflowEngine.Tests.Schemas;
 using WorkflowEngine.Tests.Workflows;
+using Xunit;
 using ThreadingTask = System.Threading.Tasks.Task;
 
 namespace WorkflowEngine.Tests
 {
-    [TestClass]
-    public class CancellationTests
+    public class CancellationTests : IClassFixture<UnityContainerFixture>, IDisposable
     {
-        private static IUnityContainer _container;
+        private readonly UnityContainerFixture _fixture;
 
-        [ClassInitialize]
-        public static void Initialize(TestContext context)
+        public CancellationTests(UnityContainerFixture fixture)
         {
-            _container = new UnityContainer();
-            _container.RegisterType<IPluginServices, PluginServices>();
-            _container.RegisterType<IPluginConfig, MockPluginConfig>();
-            _container.RegisterType<IServiceProvider, MockServiceProvider>();
-            _container.RegisterType<ILogger, MockLogger>();
-            _container.RegisterType<IWorkQueue, MockWorkQueue>();
+            _fixture = fixture;
         }
 
-        [TestMethod]
-        public async ThreadingTask Cancellation_NoCancellation()
+        [Fact]
+        public async ThreadingTask NoCancellation()
         {
-            var pluginServices = _container.Resolve<IPluginServices>();
+            var pluginServices = _fixture.Container.Resolve<IPluginServices>();
             pluginServices.Initialize();
             var workflow = pluginServices.GetOrCreatePlugin<CancellationWorkflow>();
             var workflowInput = pluginServices.CreatePluginData<CancellationWorkflowInput>();
 
             var workflowOutput = await workflow.Execute<CancellableTaskOutput>(new PluginInputs { { "input", workflowInput } });
 
-            Assert.IsNotNull(workflowOutput);
-            Assert.IsFalse(workflowOutput.Data.Cancelled);
+            Assert.NotNull(workflowOutput);
+            Assert.False(workflowOutput.Data.Cancelled);
         }
 
-        [TestMethod]
-        public async ThreadingTask Cancellation_PluginCancellation()
+        [Fact]
+        public async ThreadingTask PluginCancellation()
         {
-            var pluginServices = _container.Resolve<IPluginServices>();
+            var pluginServices = _fixture.Container.Resolve<IPluginServices>();
             pluginServices.Initialize();
             var workflow = pluginServices.GetOrCreatePlugin<CancellationWorkflow>();
             var workflowInput = pluginServices.CreatePluginData<CancellationWorkflowInput>();
@@ -53,14 +42,14 @@ namespace WorkflowEngine.Tests
 
             var workflowOutput = await workflow.Execute<CancellableTaskOutput>(new PluginInputs { { "input", workflowInput } });
 
-            Assert.IsNotNull(workflowOutput);
-            Assert.IsTrue(workflowOutput.Data.Cancelled);
+            Assert.NotNull(workflowOutput);
+            Assert.True(workflowOutput.Data.Cancelled);
         }
 
-        [TestMethod]
-        public async ThreadingTask Cancellation_ExecutionCancellation()
+        [Fact]
+        public async ThreadingTask ExecutionCancellation()
         {
-            var pluginServices = _container.Resolve<IPluginServices>();
+            var pluginServices = _fixture.Container.Resolve<IPluginServices>();
             pluginServices.Initialize();
             var workflow = pluginServices.GetOrCreatePlugin<CancellationWorkflow>();
             var workflowInput = pluginServices.CreatePluginData<CancellationWorkflowInput>();
@@ -68,8 +57,13 @@ namespace WorkflowEngine.Tests
 
             var workflowOutput = await workflow.Execute<CancellableTaskOutput>(new PluginInputs { { "input", workflowInput } });
 
-            Assert.IsNotNull(workflowOutput);
-            Assert.IsTrue(workflowOutput.Data.Cancelled);
+            Assert.NotNull(workflowOutput);
+            Assert.True(workflowOutput.Data.Cancelled);
+        }
+
+        public void Dispose()
+        {
+            _fixture.Dispose();
         }
     }
 }

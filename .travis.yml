@@ -1,0 +1,8 @@
+language: csharp
+solution: ./Src/WorkflowEngine.sln
+install:
+  - nuget restore ./Src/WorkflowEngine.sln
+  - nuget install xunit.runner.console -Version 2.2.0 -OutputDirectory testrunner
+script:
+  - msbuild /p:Configuration=Release ./Src/WorkflowEngine.sln
+  - mono ./testrunner/xunit.runner.console.2.2.0/tools/xunit.console.exe ./Src/WorkflowEngine.Tests/bin/Release/WorkflowEngine.Tests.dll

@@ -1,76 +1,64 @@
-﻿using Microsoft.Practices.Unity;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using System;
+using Microsoft.Practices.Unity;
 using WorkflowEngine.Interfaces;
-using WorkflowEngine.Json;
-using WorkflowEngine.Logging.Interfaces;
-using WorkflowEngine.Tests.Mocks.Config;
-using WorkflowEngine.Tests.Mocks.Logging;
 using WorkflowEngine.Tests.Mocks.ServiceProvider;
-using WorkflowEngine.Tests.Mocks.WorkQueue;
 using WorkflowEngine.Tests.Schemas;
+using Xunit;
+using Assert = Xunit.Assert;
+using IServiceProvider = WorkflowEngine.Interfaces.IServiceProvider;
 using ThreadingTask = System.Threading.Tasks.Task;
 
 namespace WorkflowEngine.Tests
 {
-    [TestClass]
-    public class PluginVersioningTests
+    public class PluginVersioningTests : IClassFixture<UnityContainerFixture>, IDisposable
     {
+        private readonly UnityContainerFixture _fixture;
 
-        private static IUnityContainer _container;
-
-        [ClassInitialize]
-        public static void Initialize(TestContext context)
+        public PluginVersioningTests(UnityContainerFixture fixture)
         {
-            _container = new UnityContainer();
-            _container.RegisterType<IPluginServices, PluginServices>();
-            _container.RegisterType<IPluginConfig, MockPluginConfig>();
-            _container.RegisterType<IServiceProvider, MockServiceProvider>();
-            _container.RegisterType<ILogger, MockLogger>();
-            _container.RegisterType<IWorkQueue, MockWorkQueue>();
-
-            JsonUtils.SetGlobalJsonNetSettings();
+            _fixture = fixture;
         }
 
-        [TestMethod]
-        public async ThreadingTask Versioning_CompatiblePluginsSameVersion()
+        [Fact]
+        public async ThreadingTask CompatiblePluginsSameVersion()
         {
             await RunPluginVersioningTest<Workflows.ExternalTask.V1.ExternalAnswerWorkflow, Workflows.ExternalTask.V1Prime.ExternalAnswerWorkflow>(true);
         }
 
-        [TestMethod]
-        public async ThreadingTask Versioning_CompatiblePluginsDifferentMinorVersion()
+        [Fact]
+        public async ThreadingTask CompatiblePluginsDifferentMinorVersion()
         {
             await RunPluginVersioningTest<Workflows.ExternalTask.V1.ExternalAnswerWorkflow, Workflows.ExternalTask.V15.ExternalAnswerWorkflow>(true);
         }
 
 
-        [TestMethod]
-        public async ThreadingTask Versioning_InompatiblePluginsDifferentMajorVersion_FirstOlder()
+        [Fact]
+        public async ThreadingTask InompatiblePluginsDifferentMajorVersion_FirstOlder()
         {
             await RunPluginVersioningTest<Workflows.ExternalTask.V1.ExternalAnswerWorkflow, Workflows.ExternalTask.V2.ExternalAnswerWorkflow>(false);
         }
 
-        [TestMethod]
-        public async ThreadingTask Versioning_InompatiblePluginsDifferentMajorVersion_FirstNewer()
+        [Fact]
+        public async ThreadingTask InompatiblePluginsDifferentMajorVersion_FirstNewer()
         {
             await RunPluginVersioningTest<Workflows.ExternalTask.V2.ExternalAnswerWorkflow, Workflows.ExternalTask.V1.ExternalAnswerWorkflow>(false);
         }
 
-        [TestMethod]
-        public async ThreadingTask Versioning_IncompatiblePluginsDifferentMinorVersion_FirstNewer()
+        [Fact]
+        public async ThreadingTask IncompatiblePluginsDifferentMinorVersion_FirstNewer()
         {
             await RunPluginVersioningTest<Workflows.ExternalTask.V15.ExternalAnswerWorkflow, Workflows.ExternalTask.V1.ExternalAnswerWorkflow>(false);
         }
 
 
-        private static async ThreadingTask RunPluginVersioningTest<TFirstPlugin, TSecondPlugin>(bool shouldSucceed)
+        private async ThreadingTask RunPluginVersioningTest<TFirstPlugin, TSecondPlugin>(bool shouldSucceed)
             where TSecondPlugin : Workflow, new()
             where TFirstPlugin : Workflow, new()
         {
-            _container.RegisterInstance(GetServiceProvider());
-            _container.RegisterType<IWorkflowContainer<TFirstPlugin, ExternalDataHandlerTaskOutput>, WorkflowContainer<TFirstPlugin, ExternalDataHandlerTaskOutput>>();
-            _container.RegisterType<IWorkflowContainer<TSecondPlugin, ExternalDataHandlerTaskOutput>, WorkflowContainer<TSecondPlugin, ExternalDataHandlerTaskOutput>>();
-            var firstPluginContainer = _container.Resolve<IWorkflowContainer<TFirstPlugin, ExternalDataHandlerTaskOutput>>();
+            _fixture.Container.RegisterInstance(GetServiceProvider(), new PerThreadLifetimeManager());
+            _fixture.Container.RegisterType<IWorkflowContainer<TFirstPlugin, ExternalDataHandlerTaskOutput>, WorkflowContainer<TFirstPlugin, ExternalDataHandlerTaskOutput>>();
+            _fixture.Container.RegisterType<IWorkflowContainer<TSecondPlugin, ExternalDataHandlerTaskOutput>, WorkflowContainer<TSecondPlugin, ExternalDataHandlerTaskOutput>>();
+            var firstPluginContainer = _fixture.Container.Resolve<IWorkflowContainer<TFirstPlugin, ExternalDataHandlerTaskOutput>>();
             firstPluginContainer.Initialize();
 
             var workflowInput = firstPluginContainer.CreateWorkflowInput<ExternalAnswerWorkflowInput>();
@@ -79,28 +67,28 @@ namespace WorkflowEngine.Tests
             // First execution. External dependencies won't be resolved
             var result = await firstPluginContainer.Execute(new PluginInputs { { "input", workflowInput } });
             var workflowOutput = firstPluginContainer.GetOutput();
-            Assert.IsNull(workflowOutput);
-            Assert.IsTrue(result == WorkflowContainerExecutionResult.PartiallyCompleted);
+            Assert.Null(workflowOutput);
+            Assert.True(result == WorkflowContainerExecutionResult.PartiallyCompleted);
 
             // Store Context and recreate workflow container
             var serializedWorkflowContext = firstPluginContainer.Store();
 
-            var secondPluginContainer = _container.Resolve<IWorkflowContainer<TSecondPlugin, ExternalDataHandlerTaskOutput>>();
+            var secondPluginContainer = _fixture.Container.Resolve<IWorkflowContainer<TSecondPlugin, ExternalDataHandlerTaskOutput>>();
             var loadSucceeded = secondPluginContainer.TryLoad(serializedWorkflowContext);
-            Assert.IsTrue(loadSucceeded);
+            Assert.True(loadSucceeded);
 
             // Second execution. External dependencies will be resolved
             result = await secondPluginContainer.ReExecute();
             workflowOutput = secondPluginContainer.GetOutput();
             if (shouldSucceed)
             {
-                Assert.IsNotNull(workflowOutput);
-                Assert.IsTrue(result == WorkflowContainerExecutionResult.Completed);
+                Assert.NotNull(workflowOutput);
+                Assert.True(result == WorkflowContainerExecutionResult.Completed);
             }
             else
             {
-                Assert.IsNull(workflowOutput);
-                Assert.IsTrue(result == WorkflowContainerExecutionResult.NotExecuted);
+                Assert.Null(workflowOutput);
+                Assert.True(result == WorkflowContainerExecutionResult.NotExecuted);
             }
         }
 
@@ -113,5 +101,9 @@ namespace WorkflowEngine.Tests
             return serviceProvider;
         }
 
+        public void Dispose()
+        {
+            _fixture.Dispose();
+        }
     }
 }

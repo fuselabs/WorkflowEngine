@@ -1,42 +1,30 @@
-﻿using Microsoft.Practices.Unity;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using System;
+using Microsoft.Practices.Unity;
 using WorkflowEngine.Interfaces;
-using WorkflowEngine.Json;
-using WorkflowEngine.Logging.Interfaces;
-using WorkflowEngine.Tests.Mocks.Config;
-using WorkflowEngine.Tests.Mocks.Logging;
 using WorkflowEngine.Tests.Mocks.ServiceProvider;
-using WorkflowEngine.Tests.Mocks.WorkQueue;
 using WorkflowEngine.Tests.Schemas;
 using WorkflowEngine.Tests.Workflows.ExternalTask;
+using Xunit;
+using IServiceProvider = WorkflowEngine.Interfaces.IServiceProvider;
 using ThreadingTask = System.Threading.Tasks.Task;
 
 namespace WorkflowEngine.Tests
 {
-    [TestClass]
-    public class SchemaVersioningTests
+    public class SchemaVersioningTests : IClassFixture<UnityContainerFixture>, IDisposable
     {
-        private static IUnityContainer _container;
+        private readonly UnityContainerFixture _fixture;
 
-        [ClassInitialize]
-        public static void Initialize(TestContext context)
+        public SchemaVersioningTests(UnityContainerFixture fixture)
         {
-            _container = new UnityContainer();
-            _container.RegisterType<IPluginServices, PluginServices>();
-            _container.RegisterType<IPluginConfig, MockPluginConfig>();
-            _container.RegisterType<IServiceProvider, MockServiceProvider>();
-            _container.RegisterType<ILogger, MockLogger>();
-            _container.RegisterType<IWorkQueue, MockWorkQueue>();
-
-            JsonUtils.SetGlobalJsonNetSettings();
+            _fixture = fixture;
         }
 
-        [TestMethod]
-        public async ThreadingTask Versioning_BreakingSchemaChange()
+        [Fact]
+        public async ThreadingTask BreakingSchemaChange()
         {
-            _container.RegisterInstance(GetServiceProvider());
-            _container.RegisterType<IWorkflowContainer<ExternalAnswerWorkflow, ExternalDataHandlerTaskOutput>, WorkflowContainer<ExternalAnswerWorkflow, ExternalDataHandlerTaskOutput>>();
-            var workflowContainer = _container.Resolve<IWorkflowContainer<ExternalAnswerWorkflow, ExternalDataHandlerTaskOutput>>();
+            _fixture.Container.RegisterInstance(GetServiceProvider());
+            _fixture.Container.RegisterType<IWorkflowContainer<ExternalAnswerWorkflow, ExternalDataHandlerTaskOutput>, WorkflowContainer<ExternalAnswerWorkflow, ExternalDataHandlerTaskOutput>>();
+            var workflowContainer = _fixture.Container.Resolve<IWorkflowContainer<ExternalAnswerWorkflow, ExternalDataHandlerTaskOutput>>();
             workflowContainer.Initialize();
 
             var workflowInput = workflowContainer.CreateWorkflowInput<ExternalAnswerWorkflowInput>();
@@ -45,8 +33,8 @@ namespace WorkflowEngine.Tests
             // First execution. External dependencies won't be resolved
             var result = await workflowContainer.Execute(new PluginInputs { { "input", workflowInput } });
             var workflowOutput = workflowContainer.GetOutput();
-            Assert.IsNull(workflowOutput);
-            Assert.IsTrue(result == WorkflowContainerExecutionResult.PartiallyCompleted);
+            Assert.Null(workflowOutput);
+            Assert.True(result == WorkflowContainerExecutionResult.PartiallyCompleted);
 
             // Store Context and recreate workflow container
             var serializedWorkflowContext = workflowContainer.Store();
@@ -55,49 +43,49 @@ namespace WorkflowEngine.Tests
             // Property from String to a nested object
             serializedWorkflowContext = serializedWorkflowContext.Replace("\"2+2\"", "{\"QuestionString\":\"2+2\"}");
 
-            workflowContainer = _container.Resolve<IWorkflowContainer<ExternalAnswerWorkflow, ExternalDataHandlerTaskOutput>>();
+            workflowContainer = _fixture.Container.Resolve<IWorkflowContainer<ExternalAnswerWorkflow, ExternalDataHandlerTaskOutput>>();
             var loadSucceeded = workflowContainer.TryLoad(serializedWorkflowContext);
-            Assert.IsFalse(loadSucceeded);
+            Assert.False(loadSucceeded);
         }
 
-        [TestMethod]
-        public async ThreadingTask Versioning_CompatibleSchemas_SameVersion()
+        [Fact]
+        public async ThreadingTask CompatibleSchemas_SameVersion()
         {
             await RunPluginVersioningTest<Workflows.ExternalTask.V1.InputV1.ExternalAnswerWorkflow>(new Version(1, 0), true);
         }
 
-        [TestMethod]
-        public async ThreadingTask Versioning_CompatibleSchemas_DifferentMinorVersion_NewerSchema()
+        [Fact]
+        public async ThreadingTask CompatibleSchemas_DifferentMinorVersion_NewerSchema()
         {
             await RunPluginVersioningTest<Workflows.ExternalTask.V1.InputV1.ExternalAnswerWorkflow>(new Version(1, 5), true);
         }
 
-        [TestMethod]
-        public async ThreadingTask Versioning_IncompatibleSchemas_DifferentMinorVersion_OlderSchema()
+        [Fact]
+        public async ThreadingTask IncompatibleSchemas_DifferentMinorVersion_OlderSchema()
         {
             await RunPluginVersioningTest<Workflows.ExternalTask.V1.InputV15.ExternalAnswerWorkflow>(new Version(1, 0), false);
         }
 
-        [TestMethod]
-        public async ThreadingTask Versioning_InompatibleSchemas_DifferentMajorVersion_NewerSchema()
+        [Fact]
+        public async ThreadingTask InompatibleSchemas_DifferentMajorVersion_NewerSchema()
         {
             await RunPluginVersioningTest<Workflows.ExternalTask.V1.InputV15.ExternalAnswerWorkflow>(new Version(2, 0), false);
         }
 
-        [TestMethod]
-        public async ThreadingTask Versioning_InompatibleSchemas_DifferentMajorVersion_OlderSchema()
+        [Fact]
+        public async ThreadingTask InompatibleSchemas_DifferentMajorVersion_OlderSchema()
         {
             await RunPluginVersioningTest<Workflows.ExternalTask.V1.InputV2.ExternalAnswerWorkflow>(new Version(1, 0), false);
         }
 
 
 
-        private static async ThreadingTask RunPluginVersioningTest<TWorkflow>(Version targetVersion, bool shouldSucceed)
+        private async ThreadingTask RunPluginVersioningTest<TWorkflow>(Version targetVersion, bool shouldSucceed)
             where TWorkflow : Workflow, new()
         {
-            _container.RegisterInstance(GetServiceProvider());
-            _container.RegisterType<IWorkflowContainer<TWorkflow, ExternalDataHandlerTaskOutput>, WorkflowContainer<TWorkflow, ExternalDataHandlerTaskOutput>>();
-            var workflowContainer = _container.Resolve<IWorkflowContainer<TWorkflow, ExternalDataHandlerTaskOutput>>();
+            _fixture.Container.RegisterInstance(GetServiceProvider(), new PerThreadLifetimeManager());
+            _fixture.Container.RegisterType<IWorkflowContainer<TWorkflow, ExternalDataHandlerTaskOutput>, WorkflowContainer<TWorkflow, ExternalDataHandlerTaskOutput>>();
+            var workflowContainer = _fixture.Container.Resolve<IWorkflowContainer<TWorkflow, ExternalDataHandlerTaskOutput>>();
             workflowContainer.Initialize();
 
             var workflowInput = workflowContainer.CreateWorkflowInput<ExternalAnswerWorkflowInput>();
@@ -107,15 +95,15 @@ namespace WorkflowEngine.Tests
             // First execution. External dependencies won't be resolved
             var result = await workflowContainer.Execute(new PluginInputs { { "input", workflowInput } });
             var workflowOutput = workflowContainer.GetOutput();
-            Assert.IsNull(workflowOutput);
-            Assert.IsTrue(result == WorkflowContainerExecutionResult.PartiallyCompleted);
+            Assert.Null(workflowOutput);
+            Assert.True(result == WorkflowContainerExecutionResult.PartiallyCompleted);
 
             // Store Context and recreate workflow container
             var serializedWorkflowContext = workflowContainer.Store();
 
-            workflowContainer = _container.Resolve<IWorkflowContainer<TWorkflow, ExternalDataHandlerTaskOutput>>();
+            workflowContainer = _fixture.Container.Resolve<IWorkflowContainer<TWorkflow, ExternalDataHandlerTaskOutput>>();
             var loadSucceeded = workflowContainer.TryLoad(serializedWorkflowContext);
-            Assert.IsTrue(loadSucceeded);
+            Assert.True(loadSucceeded);
 
             // Second execution. External dependencies will be resolved
             result = await workflowContainer.ReExecute();
@@ -123,13 +111,13 @@ namespace WorkflowEngine.Tests
 
             if (shouldSucceed)
             {
-                Assert.IsNotNull(workflowOutput);
-                Assert.IsTrue(result == WorkflowContainerExecutionResult.Completed);
+                Assert.NotNull(workflowOutput);
+                Assert.True(result == WorkflowContainerExecutionResult.Completed);
             }
             else
             {
-                Assert.IsNull(workflowOutput);
-                Assert.IsTrue(result == WorkflowContainerExecutionResult.PartiallyCompleted);
+                Assert.Null(workflowOutput);
+                Assert.True(result == WorkflowContainerExecutionResult.PartiallyCompleted);
             }
         }
 
@@ -145,6 +133,11 @@ namespace WorkflowEngine.Tests
             var serviceProvider = new MockServiceProvider();
             serviceProvider.SetService("ExternalService", externalService);
             return serviceProvider;
+        }
+
+        public void Dispose()
+        {
+            _fixture.Dispose();
         }
     }
 }
