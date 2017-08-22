@@ -1,4 +1,5 @@
-# A Stateful Workflow Execution Engine
+# A Stateful Workflow Execution Engine 
+[![Build Status](https://travis-ci.org/emadelwany/WorkflowEngine.svg?branch=master)](https://travis-ci.org/emadelwany/WorkflowEngine) 
 
 This Library allows for creating long running, stateful and versioned workflows for breaking complex workflows into smaller ones that can be run synchronously or asynchronously over short or long periods of time.
 
