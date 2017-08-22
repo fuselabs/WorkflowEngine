@@ -1,13 +1,13 @@
 ﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
+using Assert = Xunit.Assert;
 
 namespace WorkflowEngine.Tests
 {
-    [TestClass]
     public class VersionTests
     {
-        [TestMethod]
-        public void Version_Parsing_Valid()
+        [Fact]
+        public void Parsing_Valid()
         {
             RunParsingValidTest(0u, 0u);
             RunParsingValidTest(1u, 0u);
@@ -17,8 +17,8 @@ namespace WorkflowEngine.Tests
             RunParsingValidTest(15u, 15u);
         }
 
-        [TestMethod]
-        public void Version_Parsing_Invalid()
+        [Fact]
+        public void Parsing_Invalid()
         {
             RunParsingInvalidTest("1");
             RunParsingInvalidTest("1.");
@@ -40,37 +40,37 @@ namespace WorkflowEngine.Tests
 
             var version = new Version(versionStr);
 
-            Assert.AreEqual(major, version.MajorVersion);
-            Assert.AreEqual(minor, version.MinorVersion);
+            Assert.Equal(major, version.MajorVersion);
+            Assert.Equal(minor, version.MinorVersion);
 
-            Assert.IsTrue(Version.TryParse(versionStr, out version));
-            Assert.AreEqual(major, version.MajorVersion);
-            Assert.AreEqual(minor, version.MinorVersion);
+            Assert.True(Version.TryParse(versionStr, out version));
+            Assert.Equal(major, version.MajorVersion);
+            Assert.Equal(minor, version.MinorVersion);
 
         }
 
         
         public static void RunParsingInvalidTest(string invalidVersion)
         {
-            Assert.IsFalse(Version.TryParse(invalidVersion, out Version version));
-            Assert.IsNull(version);
+            Assert.False(Version.TryParse(invalidVersion, out Version version));
+            Assert.Null(version);
 
             try
             {
                 new Version(invalidVersion);
-                Assert.Fail("An exception should have been thrown");
+                Assert.True(false, "An exception should have been thrown");
             }
             catch (ArgumentNullException ane)
             {
-                Assert.IsTrue(ane.Message.Contains("Parameter name: version"));
+                Assert.True(ane.Message.Contains("Parameter name: version"));
             }
             catch (ArgumentException ae)
             {
-                Assert.IsTrue(ae.Message.Contains("Parameter name: version"));
+                Assert.True(ae.Message.Contains("Parameter name: version"));
             }
             catch (Exception e)
             {
-                Assert.Fail($"Unexpected exception of type {e.GetType()} caught: {e.Message}");
+                Assert.True(false, $"Unexpected exception of type {e.GetType()} caught: {e.Message}");
             }
         }
 

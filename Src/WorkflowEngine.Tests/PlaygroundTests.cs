@@ -1,39 +1,28 @@
-﻿using Microsoft.Practices.Unity;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using System;
+using Microsoft.Practices.Unity;
 using WorkflowEngine.Interfaces;
-using WorkflowEngine.Logging.Interfaces;
-using WorkflowEngine.Tests.Mocks.Config;
-using WorkflowEngine.Tests.Mocks.Logging;
-using WorkflowEngine.Tests.Mocks.ServiceProvider;
-using WorkflowEngine.Tests.Mocks.WorkQueue;
 using WorkflowEngine.Tests.Schemas;
 using WorkflowEngine.Tests.Workflows;
+using Xunit;
 using ThreadingTask = System.Threading.Tasks.Task;
 
 namespace WorkflowEngine.Tests
 {
-    [TestClass]
-    public class PlaygroundTests
+    public class PlaygroundTests : IClassFixture<UnityContainerFixture>, IDisposable
     {
-        private static IUnityContainer _container;
+        private readonly UnityContainerFixture _fixture;
 
-        [ClassInitialize]
-        public static void Initialize(TestContext context)
+        public PlaygroundTests(UnityContainerFixture fixture)
         {
-            _container = new UnityContainer();
-            _container.RegisterType<IPluginServices, PluginServices>();
-            _container.RegisterType<IPluginConfig, MockPluginConfig>();
-            _container.RegisterType<IServiceProvider, MockServiceProvider>();
-            _container.RegisterType<ILogger, MockLogger>();
-            _container.RegisterType<IWorkQueue, MockWorkQueue>();
+            _fixture = fixture;
         }
 
-        [TestMethod]
-        public async ThreadingTask WorkflowEngine_SmokeTest()
+        [Fact]
+        public async ThreadingTask SmokeTest()
         {
 
             const string email = "Hi, can you please help me find out if Tom and Dan prefer Green or Blue?";
-            var pluginServices = _container.Resolve<IPluginServices>();
+            var pluginServices = _fixture.Container.Resolve<IPluginServices>();
             pluginServices.Initialize();
 
             var input = pluginServices.CreatePluginData<IdentifyRequestTypeInput>();
@@ -42,18 +31,18 @@ namespace WorkflowEngine.Tests
             var identifyWorkflow = pluginServices.GetOrCreatePlugin<IdentifyRequestTypeWorkflow>();
 
             var output = await identifyWorkflow.Execute<IdentifyRequestTypeOutput>(new PluginInputs { { "input", input } });
-            Assert.IsNotNull(output);
-            Assert.IsTrue(output.Data.Type == RequestType.Voting);
-            Assert.IsTrue(pluginServices.AllPluginsExecuted());
+            Assert.NotNull(output);
+            Assert.True(output.Data.Type == RequestType.Voting);
+            Assert.True(pluginServices.AllPluginsExecuted());
         }
 
-        [TestMethod]
+        [Fact]
         public async ThreadingTask WorkflowEngine_SmokeTestWithContainer()
         {
             const string email = "Hi, can you please help me find out if Tom and Dan prefer Green or Blue?";
-            _container.RegisterType<IWorkflowContainer<IdentifyRequestTypeWorkflow, IdentifyRequestTypeOutput>, WorkflowContainer<IdentifyRequestTypeWorkflow, IdentifyRequestTypeOutput>>();
+            _fixture.Container.RegisterType<IWorkflowContainer<IdentifyRequestTypeWorkflow, IdentifyRequestTypeOutput>, WorkflowContainer<IdentifyRequestTypeWorkflow, IdentifyRequestTypeOutput>>();
 
-            var workflowContainer = _container.Resolve<IWorkflowContainer<IdentifyRequestTypeWorkflow, IdentifyRequestTypeOutput>>();
+            var workflowContainer = _fixture.Container.Resolve<IWorkflowContainer<IdentifyRequestTypeWorkflow, IdentifyRequestTypeOutput>>();
             workflowContainer.Initialize();
 
             var input = workflowContainer.CreateWorkflowInput<IdentifyRequestTypeInput>();
@@ -61,9 +50,14 @@ namespace WorkflowEngine.Tests
 
             var result = await workflowContainer.Execute(new PluginInputs { { "input", input } });
             var output = workflowContainer.GetOutput();
-            Assert.IsNotNull(output);
-            Assert.IsTrue(output.Data.Type == RequestType.Voting);
-            Assert.IsTrue(result == WorkflowContainerExecutionResult.Completed);
+            Assert.NotNull(output);
+            Assert.True(output.Data.Type == RequestType.Voting);
+            Assert.True(result == WorkflowContainerExecutionResult.Completed);
+        }
+
+        public void Dispose()
+        {
+            _fixture.Dispose();
         }
     }
 }

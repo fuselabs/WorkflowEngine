@@ -1,50 +1,41 @@
-﻿using Microsoft.Practices.Unity;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using System;
+using Microsoft.Practices.Unity;
 using Newtonsoft.Json;
 using Schemas;
 using Schemas.Framework;
 using WorkflowEngine.Interfaces;
-using WorkflowEngine.Logging.Interfaces;
-using WorkflowEngine.Tests.Mocks.Config;
-using WorkflowEngine.Tests.Mocks.Logging;
 using WorkflowEngine.Tests.Mocks.ServiceProvider;
-using WorkflowEngine.Tests.Mocks.WorkQueue;
 using WorkflowEngine.Tests.Workflows;
+using Xunit;
+using IServiceProvider = WorkflowEngine.Interfaces.IServiceProvider;
 using ThreadingTask = System.Threading.Tasks.Task;
 
 namespace WorkflowEngine.Tests
 {
-    [TestClass]
-    public class JsonExternalWorkflowTests
+    public class JsonExternalWorkflowTests : IClassFixture<UnityContainerFixture>, IDisposable
     {
-        private static IUnityContainer _container;
+        private readonly UnityContainerFixture _fixture;
 
-        [ClassInitialize]
-        public static void Initialize(TestContext context)
+        public JsonExternalWorkflowTests(UnityContainerFixture fixture)
         {
-            _container = new UnityContainer();
-            _container.RegisterType<IPluginServices, PluginServices>();
-            _container.RegisterType<IPluginConfig, MockPluginConfig>();
-            _container.RegisterType<IServiceProvider, MockServiceProvider>();
-            _container.RegisterType<ILogger, MockLogger>();
-            _container.RegisterType<IWorkQueue, MockWorkQueue>();
+            _fixture = fixture;
         }
 
 
-        [TestMethod]
-        public async ThreadingTask JsonExternalWorkflow_BasicTest()
+        [Fact]
+        public async ThreadingTask BasicTest()
         {
             // Initialize Test String
             const string testInputData = "Do you have Kobe Meat?";
             var expectedJson = JsonConvert.SerializeObject(new StringData { String = "Sure, we do have Kobe meat!" });
 
             // Execute Test
-            _container.RegisterType<
+            _fixture.Container.RegisterType<
                 IWorkflowContainer<JsonExternalWorkflow<StringData, StringData>, StringData>,
                 WorkflowContainer<JsonExternalWorkflow<StringData, StringData>, StringData>>();
-            
-            _container.RegisterInstance(GetServiceProvider(expectedJson));
-            var workflowContainer = _container.Resolve<IWorkflowContainer<JsonExternalWorkflow<StringData, StringData>, StringData>>();
+
+            _fixture.Container.RegisterInstance(GetServiceProvider(expectedJson));
+            var workflowContainer = _fixture.Container.Resolve<IWorkflowContainer<JsonExternalWorkflow<StringData, StringData>, StringData>>();
             workflowContainer.Initialize();
 
 
@@ -57,16 +48,16 @@ namespace WorkflowEngine.Tests
             var workflowOutput = workflowContainer.GetOutput();
 
             // First execution. External dependencies won't be resolved
-            Assert.IsNull(workflowOutput);
-            Assert.IsTrue(result == WorkflowContainerExecutionResult.PartiallyCompleted);
+            Assert.Null(workflowOutput);
+            Assert.True(result == WorkflowContainerExecutionResult.PartiallyCompleted);
 
 
             // Second execution. External dependencies will be resolved
             result = await workflowContainer.ReExecute();
             workflowOutput = workflowContainer.GetOutput();
-            Assert.IsNotNull(workflowOutput);
-            Assert.IsTrue(result == WorkflowContainerExecutionResult.Completed);
-            Assert.AreEqual(workflowOutput.Data.String, "Sure, we do have Kobe meat!");
+            Assert.NotNull(workflowOutput);
+            Assert.True(result == WorkflowContainerExecutionResult.Completed);
+            Assert.Equal(workflowOutput.Data.String, "Sure, we do have Kobe meat!");
         }
 
         private static IServiceProvider GetServiceProvider(string data)
@@ -76,6 +67,11 @@ namespace WorkflowEngine.Tests
             var serviceProvider = new MockServiceProvider();
             serviceProvider.SetService("ExternalService", externalService);
             return serviceProvider;
+        }
+
+        public void Dispose()
+        {
+            _fixture.Dispose();
         }
     }
 }
